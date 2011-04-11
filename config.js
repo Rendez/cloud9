@@ -1,5 +1,5 @@
 exports.Config = {
-    workspace: "/Users/luismerino/Sites/annotr/trunk/dev/less",
+    workspace: ".",
     ip: "127.0.0.1",
     port: 3000
 };

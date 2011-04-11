@@ -45,7 +45,6 @@ exports.question = function(title, header, msg, onyes, onyestoall, onno, onnotoa
 var SupportedIcons = {
    "application/xhtml+xml":'html',
    "text/css": "css",
-   "text/less": "page_white_less",
    "text/html":'html',
     "application/pdf":'page_white_acrobat',
     "image":'image',
@@ -68,7 +67,6 @@ var contentTypes = {
     "js": "application/javascript",
     "json": "application/json",
     "css": "text/css",
-    "less": "text/less",
     
     "xml": "application/xml",
     "rdf": "application/rdf+xml",

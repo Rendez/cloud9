@@ -15,7 +15,7 @@
 	url = http://github.com/ajaxorg/lib-v8debug.git
 [submodule "support/ace"]
 	path = support/ace
-	url = http://github.com/Rendez/ace
+	url = http://github.com/ajaxorg/ace.git
 [submodule "support/apf"]
 	path = support/apf
 	url = http://github.com/ajaxorg/apf.git

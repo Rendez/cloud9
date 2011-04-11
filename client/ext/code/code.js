@@ -35,7 +35,6 @@ var SupportedModes = {
     "application/javascript": "javascript",
     "application/json": "javascript",
     "text/css": "css",
-    "text/less": "less",
     "text/html": "html",
     "application/xhtml+xml": "html",
     "application/xml": "xml",
@@ -61,7 +60,6 @@ var contentTypes = {
     "js": "application/javascript",
     "json": "application/json",
     "css": "text/css",
-    "less": "text/less",
     
     "xml": "application/xml",
     "rdf": "application/rdf+xml",
