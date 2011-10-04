@@ -6,11 +6,12 @@
 
 define(function(require, exports, module) {
 
-var ide  = require("core/ide");
-var ext  = require("core/ext");
-var util = require("core/util");
-var fs   = require("ext/filesystem/filesystem");
-var tree = require("ext/tree/tree");
+var ide    = require("core/ide");
+var ext    = require("core/ext");
+var util   = require("core/util");
+var fs     = require("ext/filesystem/filesystem");
+var tree   = require("ext/tree/tree");
+var markup = require("text!ext/dragdrop/dragdrop.xml");;
 
 var MAX_UPLOAD_SIZE = 52428800;
 var MAX_OPENFILE_SIZE = 2097152;
@@ -24,12 +25,17 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
     deps        : [tree],
     
     nodes: [],
-        
+    
+    files: [],
+    queue: [],
+            
     init: function() {
         //if (!apf.hasDragAndDrop)
         //    return;
-
+        
+        this.markup = trFiles.parentNode.insertMarkup(markup);
         this.nodes.push(trFiles.$ext, tabEditors.$ext);
+        
         var dropbox = document.createElement("div");
         apf.setStyleClass(dropbox, "draganddrop");
         
@@ -73,44 +79,26 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
             apf.stopEvent(e);
         }
         
-        this.StatusBar = {
-            $init: function() {
-                if (!sbMain)
-                    return;
-                
-                sbMain.firstChild.appendChild(
-                    new apf.progressbar({
-                        id: "pbMain",
-                        anchors: "0 0 0 5",
-                        //autohide: true
-                    })
-                );
-            },
-            start: function() {
-                if (!sbMain.visible)
-                    sbMain.show();
+        this.Status = {
+            begin: function() {
+                if (!dlStatus.visible)
+                    dlStatus.show();
             },
             end: function() {
-                sbMain.hide();
-                
-                if (sbMain.childNodes)
-                    sbMain.childNodes[0].setAttribute("caption", "");
+                dlStatus.hide();
+                dlStatusInfo.removeAttribute("caption");
+                dlStatusFile.removeAttribute("caption");
             },
-            upload: function(file) {
-                if (sbMain.childNodes) {
-                    var caption = "Uploading file " + (file.name || "") + "(" + (file.type || "") + ")";
-                    sbMain.childNodes[0].setAttribute("caption", caption);
-                }
-                pbMain.clear();
-                pbMain.start();
-                
+            update: function(file, i, total) {
+                var caption = "Uploading file " + i +  " of " + total;
+                dlStatusInfo.setAttribute("caption", caption);
+                dlStatusFile.setAttribute("caption", file.name);
             },
-            progress: function(value) {
-                pbMain.setValue(value);
+            progress: function(v) {
+                dlProgressbar.setValue(v);
             }
         };
             
-        this.StatusBar.$init();
         apf.addEventListener("http.uploadprogress", this.onProgress.bind(this));
     },
     
@@ -156,33 +144,55 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
     onDrop: function(e) {
         var _self = this;
         var dt = e.dataTransfer;
-        var files = dt.files;
         
-        apf.asyncForEach(files, function(file, next) {
-            _self.StatusBar.start();
-            /** Chrome, Firefox */
-            if (apf.hasFileApi) {
-                /** Processing ... */
-                var reader = new FileReader();
-                /** Init the reader event handlers */
-                reader.onloadend = _self.onLoad.bind(_self, file, next);
-                /** Begin the read operation */
-                reader.readAsBinaryString(file);
-            }
-            else {
-                /** Safari >= 5.0.2 and Safari < 6.0 */
-                _self.onLoad(file, next, _self.getFormData(file));
-                /**
-                 * @fixme Safari for Mac is buggy when sending XHR using FormData
-                 * Problem in their source code causing sometimes `WebKitFormBoundary`
-                 * to be added to the request body, making it imposible to construct
-                 * a multipart message manually and to construct headers.
-                 * 
-                 * @see http://www.google.es/url?sa=t&source=web&cd=2&ved=0CCgQFjAB&url=https%3A%2F%2Fdiscussions.apple.com%2Fthread%2F2412523%3Fstart%3D0%26tstart%3D0&ei=GFWITr2BM4SEOt7doNUB&usg=AFQjCNF6WSGeTkrpaqioUyEswi9K2xhZ8g
-                 * @todo For safari 6.0 seems like FileReader will be present
-                 */
-            }
-        }, this.StatusBar.end);
+        function async(files) {
+            _self.Status.begin();
+            
+            apf.asyncForEach(files, function(file, next) {
+                /** Chrome, Firefox */
+                if (apf.hasFileApi) {
+                    /** Processing ... */
+                    var reader = new FileReader();
+                    /** Init the reader event handlers */
+                    reader.onloadend = _self.onLoad.bind(_self, file, next);
+                    /** Begin the read operation */
+                    reader.readAsBinaryString(file);
+                }
+                else {
+                    /** Safari >= 5.0.2 and Safari < 6.0 */
+                    _self.onLoad(file, next, _self.getFormData(file));
+                    /**
+                     * @fixme Safari for Mac is buggy when sending a XHR using a
+                     * FormData instance. There's a know problem in their source
+                     * causing often the injection of `WebKitFormBoundary` in the
+                     * request body, making it imposible to construct any multipart
+                     * message manually and to construct headers.
+                     * 
+                     * @see http://www.google.es/url?sa=t&source=web&cd=2&ved=0CCgQFjAB&url=https%3A%2F%2Fdiscussions.apple.com%2Fthread%2F2412523%3Fstart%3D0%26tstart%3D0&ei=GFWITr2BM4SEOt7doNUB&usg=AFQjCNF6WSGeTkrpaqioUyEswi9K2xhZ8g
+                     * @note In safari 6.0, seems like FileReader will be finally impl.
+                     */
+                }
+            }, function() {
+                if (_self.queue.length) {
+                    var files = _self.files = _self.queue;
+                    _self.queue = [];
+                    async(files);
+                }
+                else
+                    _self.Status.end();
+            });
+        }
+        
+        if (!this.files.length) {
+            for (var i = 0; i < dt.files.length; i++)
+                this.files.push(dt.files.item(i));
+            
+            async(this.files);
+        }
+        else {
+            for (var i = 0; i < dt.files.length; i++)
+                this.queue.push(dt.files.item(i));
+        }
     },
     
     onLoad: function(file, next, e) {
@@ -219,10 +229,12 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
             }*/
             
             fs.webdav.write(path + "/" + file.name, data, false, oBinary, complete);
-            _self.StatusBar.upload(file);
+            _self.Status.update(file, 1, _self.files.length);
         }
         
         function complete(data, state, extra) {
+            _self.files.shift();
+            
             if (state != apf.SUCCESS) {
                 return util.alert(
                     "Could not save document",
@@ -261,7 +273,7 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
     onProgress: function(o) {
         var e = o.extra;
         var total = (e.loaded / e.total) * 100;
-        this.StatusBar.progress(total.toFixed());
+        this.Status.progress(total.toFixed());
     },
     
     getFormData: function(file) {
@@ -277,6 +289,7 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
             for (var e in _self.dragStateEvent)
                 item.addEventListener(e, _self.dragStateEvent[e], false);
         });
+        this.markup.enable();
         apf.addEventListener("http.uploadprogress", this.onProgress);
     },
     
@@ -286,6 +299,7 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
             for (var e in _self.dragStateEvent)
                 item.removeEventListener(e, _self.dragStateEvent[e], false);
         });
+        this.markup.disable();
         apf.removeEventListener("http.uploadprogress", this.onProgress);
     },
     
@@ -297,6 +311,7 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
                 item.removeEventListener(e, _self.dragStateEvent[e], false);
         });
         this.nodes = [];
+        this.markup.destroy();
         apf.removeEventListener("http.uploadprogress", this.onProgress);
     }
 });

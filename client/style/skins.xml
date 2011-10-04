@@ -5617,6 +5617,64 @@
     </a:presentation>
 </a:statusbar>
 
+<a:statusbar name="dl-statusbar">
+    <a:style><![CDATA[
+        .dl-statusbar {
+            border-top: 1px solid #b2b2b2;
+            overflow: hidden;
+            color: #333;
+            background: -webkit-gradient(linear,left bottom,left top,color-stop(0, rgb(222,224,227)),color-stop(1, rgb(239,241,244)));
+            background: -moz-linear-gradient(center bottom,rgb(222,224,227) 0%,rgb(239,241,244) 100%);
+            width: 100%;
+        }
+
+        .dl-statusbar .section {
+            position: relative;
+            background: none;
+            
+            line-height: 30px;
+            padding: 0 8px;
+        }
+
+        .dl-statusbar .sectionIcon {
+            padding-left: 23px;
+            background: url(images/file-tree-load-spinner.gif) no-repeat 4px center;
+            display: inline-block;
+        }
+        
+        .dl-statusbar .sectionFile {
+            padding-left: 16px;
+            background: url(images/wp_searchbox_clearbtn.png) no-repeat 0 center;
+            color: #aaa;
+            float: right;
+            text-shadow: 0 1px 1px #fff;
+        }
+        
+        .dl-statusbar .sectionFile:hover {
+            cursor: pointer;
+            color: #666;
+        }
+        
+        .dl-statusbar .sectionLast {
+            height: 30px;
+        }
+        
+        .dl-statusbar .sectionLast .progressbar {
+            margin-top: 8px;
+            line-height: 100%;
+        }
+    ]]></a:style>
+
+    <a:presentation>
+        <a:main container=".">
+            <div class="dl-statusbar"></div>
+        </a:main>
+        <a:section caption="text()" container="." inherit="true">
+            <div class="section"> </div>
+        </a:section>
+    </a:presentation>
+</a:statusbar>
+
 <a:statusbar name="status">
     <a:style><![CDATA[
         .statuscontainer{
