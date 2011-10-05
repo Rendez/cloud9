@@ -5643,24 +5643,24 @@
         }
         
         .dl-statusbar .sectionFile {
-            padding-left: 16px;
-            background: url(images/wp_searchbox_clearbtn.png) no-repeat 0 center;
+            /*padding-left: 16px;*/
+            /*background: url(images/wp_searchbox_clearbtn.png) no-repeat 0 center;*/
             color: #aaa;
             float: right;
             text-shadow: 0 1px 1px #fff;
         }
         
-        .dl-statusbar .sectionFile:hover {
+        /*.dl-statusbar .sectionFile:hover {
             cursor: pointer;
             color: #666;
-        }
+        }*/
         
         .dl-statusbar .sectionLast {
             height: 30px;
         }
         
         .dl-statusbar .sectionLast .progressbar {
-            margin-top: 8px;
+            margin: 8px 0 0 8px;
             line-height: 100%;
         }
     ]]></a:style>

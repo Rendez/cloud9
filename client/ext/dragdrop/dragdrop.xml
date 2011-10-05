@@ -1,11 +1,7 @@
 <a:application xmlns:a="http://ajax.org/2005/aml">
     <a:statusbar bottom="0" skin="dl-statusbar" id="dlStatus" visible="false">
-        <a:section class="sectionIcon" id="dlStatusInfo">
-            Uploading 1 of 8
-        </a:section>
-        <a:section class="sectionFile" id="dlStatusFile">
-            Untitled.txt
-        </a:section>
+        <a:section class="sectionIcon" id="dlStatusInfo" />
+        <a:section class="sectionFile" id="dlStatusFile" />
         <a:section>
             <a:progressbar anchors="0 0 0 0" id="dlProgressbar" />
         </a:section>

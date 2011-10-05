@@ -11,7 +11,7 @@ var ext    = require("core/ext");
 var util   = require("core/util");
 var fs     = require("ext/filesystem/filesystem");
 var tree   = require("ext/tree/tree");
-var markup = require("text!ext/dragdrop/dragdrop.xml");;
+var markup = require("text!ext/dragdrop/dragdrop.xml");
 
 var MAX_UPLOAD_SIZE = 52428800;
 var MAX_OPENFILE_SIZE = 2097152;
@@ -33,7 +33,7 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
         //if (!apf.hasDragAndDrop)
         //    return;
         
-        this.markup = trFiles.parentNode.insertMarkup(markup);
+        trFiles.parentNode.insertMarkup(markup);
         this.nodes.push(trFiles.$ext, tabEditors.$ext);
         
         var dropbox = document.createElement("div");
@@ -79,27 +79,37 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
             apf.stopEvent(e);
         }
         
-        this.Status = {
-            begin: function() {
+        this.StatusBar = {
+            begin: function(files) {
+                this.reset();
+                apf.addEventListener("http.uploadprogress", _self.onProgress);
                 if (!dlStatus.visible)
                     dlStatus.show();
+                
+                this.fileCount = files.length;
             },
             end: function() {
+                this.reset();
                 dlStatus.hide();
                 dlStatusInfo.removeAttribute("caption");
                 dlStatusFile.removeAttribute("caption");
             },
-            update: function(file, i, total) {
-                var caption = "Uploading file " + i +  " of " + total;
+            update: function(fileName, i) {
+                var caption = "Uploading file " + i +  " of " + this.fileCount;
                 dlStatusInfo.setAttribute("caption", caption);
-                dlStatusFile.setAttribute("caption", file.name);
+                dlStatusFile.setAttribute("caption", fileName);
             },
-            progress: function(v) {
-                dlProgressbar.setValue(v);
+            reset: function() {
+                apf.removeEventListener("http.uploadprogress", _self.onProgress);
+                dlProgressbar.setValue(0);
+                this.fileCount = 0;
+            },
+            grow: function(percent) {
+                dlProgressbar.setValue(percent.toFixed());
             }
         };
-            
-        apf.addEventListener("http.uploadprogress", this.onProgress.bind(this));
+        
+        this.onProgress = this.onProgress.bind(this);
     },
     
     onBeforeDrop: function(e) {
@@ -112,7 +122,7 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
             );
             return false;
         }
-        /** Check the number of dropped files exceeds the limit */
+        // Check the number of dropped files exceeds the limit
         if (e.dataTransfer.files.length > MAX_CONCURRENT_FILES) {
             util.alert(
                 "Could not upload file(s)", "An error occurred while dropping this file(s)",
@@ -121,9 +131,9 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
             );
             return false;
         }
-        /** Check total filesize of dropped files */
+        // Check total filesize of dropped files
         for (var size = 0, i = 0, l = e.dataTransfer.files.length; i < l; ++i)
-            size += e.dataTransfer.files[i].size;
+            size += e.dataTransfer.files[i].fileSize;
 
         if (size > MAX_UPLOAD_SIZE) {
             util.alert(
@@ -146,20 +156,29 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
         var dt = e.dataTransfer;
         
         function async(files) {
-            _self.Status.begin();
+            _self.StatusBar.begin(files);
             
-            apf.asyncForEach(files, function(file, next) {
-                /** Chrome, Firefox */
+            apf.asyncForEach(files, function(file, next, i) {
+                // If any JS exception coming from webdav would happen...
+                if (!file || !next)
+                    return end();
+                
+                // Quick values giving user some feedback before fs.exists()
+                // figures out which available file name *.N to use...
+                dlProgressbar.setValue(0);
+                _self.StatusBar.update(file.name, i + 1);
+                    
+                // Chrome, Firefox
                 if (apf.hasFileApi) {
-                    /** Processing ... */
+                    // Processing ...
                     var reader = new FileReader();
-                    /** Init the reader event handlers */
-                    reader.onloadend = _self.onLoad.bind(_self, file, next);
-                    /** Begin the read operation */
+                    // Init the reader event handlers
+                    reader.onloadend = _self.onLoad.bind(_self, file, next, i);
+                    // Begin the read operation
                     reader.readAsBinaryString(file);
                 }
                 else {
-                    /** Safari >= 5.0.2 and Safari < 6.0 */
+                    // Safari >= 5.0.2 and Safari < 6.0
                     _self.onLoad(file, next, _self.getFormData(file));
                     /**
                      * @fixme Safari for Mac is buggy when sending a XHR using a
@@ -172,35 +191,40 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
                      * @note In safari 6.0, seems like FileReader will be finally impl.
                      */
                 }
-            }, function() {
-                if (_self.queue.length) {
-                    var files = _self.files = _self.queue;
-                    _self.queue = [];
-                    async(files);
-                }
-                else
-                    _self.Status.end();
-            });
+            }, end);
         }
         
+        function end() {
+            _self.StatusBar.end();
+            
+            if (_self.queue.length) {
+                var files = _self.files = _self.queue;
+                _self.queue = [];
+                async(files);
+            }
+            else {
+                _self.files = [];
+            }
+        }
+        
+        var i = 0;
         if (!this.files.length) {
-            for (var i = 0; i < dt.files.length; i++)
+            for (; i < dt.files.length; i++)
                 this.files.push(dt.files.item(i));
             
             async(this.files);
         }
         else {
-            for (var i = 0; i < dt.files.length; i++)
+            for (; i < dt.files.length; i++)
                 this.queue.push(dt.files.item(i));
         }
     },
     
-    onLoad: function(file, next, e) {
+    onLoad: function(file, next, i, e) {
         var node = trFiles.selected;
         if (!node)
             node = trFiles.xmlRoot.selectSingleNode("folder");
-            
-        if (node.getAttribute("type") != "folder")
+        else if (node.getAttribute("type") !== "folder")
             node = node.parentNode;
             
         var path     = node.getAttribute("path");
@@ -217,63 +241,65 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
         }
         
         function upload() {
+            _self.StatusBar.update(filename, i + 1);
             var data = e instanceof FormData ? e : e.target.result;
             var oBinary = {
                 filename: file.name,
-                filesize: file.size,
+                filesize: file.fileSize,
                 blob: file
             };
             /*if (data instanceof FormData) {
                 oBinary.filedataname = file.name;
                 oBinary.multipart = true;
             }*/
-            
-            fs.webdav.write(path + "/" + file.name, data, false, oBinary, complete);
-            _self.Status.update(file, 1, _self.files.length);
+            fs.webdav.write(path + "/" + filename, data, false, oBinary, complete);
         }
         
         function complete(data, state, extra) {
-            _self.files.shift();
-            
             if (state != apf.SUCCESS) {
                 return util.alert(
                     "Could not save document",
                     "An error occurred while saving this document",
                     "Please see if your internet connection is available and try again. "
-                        + (state == apf.TIMEOUT
-                            ? "The connection timed out."
-                            : "The error reported was " + extra.message),
+                        + (state == apf.TIMEOUT ?
+                            "The connection timed out." :
+                            "The error reported was " + extra.message),
                     next);
             }
             
-            /** Request successful */
+            // Request was successful
             fs.webdav.exec("readdir", [path], function(data) {
                 if (data instanceof Error) {
                     // @todo: in case of error, show nice alert dialog.
                     return next();
                 }
                 
-                var strXml = data.match(new RegExp(("(<file path='" + path +
-                    "/" + filename + "'.*?>)").replace(/\//g, "\\/")))[1];
-
-                var oXml = apf.xmldb.appendChild(node, apf.getXml(strXml));
-
-                trFiles.select(oXml);
-                if (file.size < MAX_OPENFILE_SIZE)
-                    ide.dispatchEvent("openfile", {doc: ide.createDocument(oXml)});
+                var child = apf.queryNode(node, 'file[starts-with(@path, "' + path + "/" + filename + '")]');
+                if (!child) {
+                    var filePath = "(<file path='" + path + "/" + filename + "'.*?>)";
+                    var strXml = data.match(new RegExp((filePath).replace(/\//g, "\\/")))[1];
+                    if (strXml)
+                        child = apf.xmldb.appendChild(node, apf.getXml(strXml));
+                }
+                if (child) {
+                    trFiles.select(child);
+                    if (file.fileSize < MAX_OPENFILE_SIZE)
+                        ide.dispatchEvent("openfile", {doc: ide.createDocument(child)});
+                }
                 
                 next();
             });
         }
         
-        /** Check if path already exists, otherwise continue with upload() */
+        // First check if path already exists, otherwise continue to upload()
         fs.exists(path + "/" + file.name, check);
     },
     
     onProgress: function(o) {
         var e = o.extra;
-        var total = (e.loaded / e.total) * 100;
-        this.Status.progress(total.toFixed());
+        var loaded = e.loaded;
+        var total = e.total;
+        this.StatusBar.grow((loaded / total) * 100);
     },
     
     getFormData: function(file) {
@@ -289,18 +315,17 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
             for (var e in _self.dragStateEvent)
                 item.addEventListener(e, _self.dragStateEvent[e], false);
         });
-        this.markup.enable();
-        apf.addEventListener("http.uploadprogress", this.onProgress);
+        dlStatus.enable();
     },
     
     disable: function() {
         var _self = this;
         this.nodes.each(function(item) {
             for (var e in _self.dragStateEvent)
-                item.removeEventListener(e, _self.dragStateEvent[e], false);
+                item.removeEventListener(e, _self.dragStateEvent[e]);
         });
-        this.markup.disable();
-        apf.removeEventListener("http.uploadprogress", this.onProgress);
+        dlStatus.disable();
+        //apf.removeEventListener("http.uploadprogress", this.onProgress);
     },
     
     destroy: function() {
@@ -308,11 +333,11 @@ module.exports = ext.register("ext/dragdrop/dragdrop", {
         this.nodes.each(function(item){
             item.removeChild(item.dropbox);
             for (var e in _self.dragStateEvent)
-                item.removeEventListener(e, _self.dragStateEvent[e], false);
+                item.removeEventListener(e, _self.dragStateEvent[e]);
         });
         this.nodes = [];
-        this.markup.destroy();
-        apf.removeEventListener("http.uploadprogress", this.onProgress);
+        dlStatus.destroy();
+        //apf.removeEventListener("http.uploadprogress", this.onProgress);
     }
 });
 
