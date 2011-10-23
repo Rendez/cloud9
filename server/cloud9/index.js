@@ -11,6 +11,7 @@ var Path = require("path");
 var IdeServer = require("./ide");
 var User = require("./user");
 var middleware = require("./middleware");
+var util = require("./util");
 
 exports.main = function(options) {
     var projectDir = options.workspace,
@@ -54,6 +55,9 @@ exports.main = function(options) {
             name: name,
             version: options.version
         };
+        
+        // additional options passed from config have to be merged into the object.
+        options = util.extend(serverOptions, options.config);
         var ide = new IdeServer(serverOptions, server, exts);
 
         return function(req, res, next) {
